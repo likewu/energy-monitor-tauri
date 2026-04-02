@@ -1,0 +1,81 @@
+mod util;
+#[cfg(feature = "local-rt")]
+mod tests {
+    use jlrs::{error::JuliaResult, prelude::*};
+
+    use super::util::JULIA;
+
+    fn eval_string(string: &str, with_result: impl for<'f> FnOnce(JuliaResult<'f, 'static>)) {
+        JULIA.with(|handle| {
+            handle.borrow_mut().with_stack(|mut stack| {
+                stack.scope(|mut frame| {
+                    with_result(unsafe { Value::eval_string(&mut frame, string) });
+                })
+            });
+        });
+    }
+
+    fn basic_math() {
+        eval_string("Int32(2) + Int32(3)", |result| {
+            assert_eq!(result.unwrap().unbox::<i32>().unwrap(), 5i32);
+        });
+    }
+
+    fn runtime_error() {
+        eval_string("[1, 2, 3][4]", |result| {
+            assert_eq!(result.unwrap_err().datatype_name(), "BoundsError");
+        });
+    }
+
+    fn syntax_error() {
+        eval_string("asdf fdsa asdf fdsa", |result| {
+            assert_eq!(result.unwrap_err().datatype_name(), "UndefVarError");
+        });
+    }
+
+    fn define_then_use() {
+        eval_string("increase(x) = x + Int32(1)", |result| {
+            assert!(result.is_ok());
+        });
+        eval_string("increase(Int32(12))", |result| {
+            assert_eq!(result.unwrap().unbox::<i32>().unwrap(), 13i32);
+        });
+        JULIA.with(|handle| {
+            handle.borrow_mut().with_stack(|mut stack| {
+                stack.scope(|mut frame| unsafe {
+                    let func = Module::main(&frame)
+                        .global(&frame, "increase")
+                        .unwrap()
+                        .as_managed();
+                    let twelve = Value::new(&mut frame, 12i32);
+                    let result = func.call(&mut frame, [twelve]);
+                    assert_eq!(result.unwrap().unbox::<i32>().unwrap(), 13i32);
+                })
+            });
+        });
+    }
+
+    fn print_error() {
+        JULIA.with(|handle| {
+            handle.borrow_mut().with_stack(|mut stack| {
+                stack.scope(|mut frame| unsafe {
+                    Value::eval_string(
+                        &mut frame,
+                        "ErrorException(\"This is an expected message\")",
+                    )
+                    .unwrap()
+                    .print_error();
+                })
+            });
+        });
+    }
+
+    #[test]
+    fn eval_string_tests() {
+        basic_math();
+        runtime_error();
+        syntax_error();
+        define_then_use();
+        print_error();
+    }
+}

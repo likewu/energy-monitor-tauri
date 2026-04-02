@@ -1,0 +1,17 @@
+[workspace]
+members = [
+  "app/src-tauri",
+  "crates/jlrs",
+  "crates/jlrs_macros",
+  "crates/ffi/jl_sys",
+  "crates/ffi/jlrs_sys",
+]
+default-members = ["app/src-tauri"]
+resolver = "2"
+
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"
+lto = true

@@ -1,0 +1,164 @@
+mod util;
+
+#[cfg(feature = "local-rt")]
+mod tests {
+    use std::collections::HashSet;
+
+    use jlrs::{
+        memory::gc::{Gc, GcCollection},
+        prelude::*,
+    };
+
+    use super::util::JULIA;
+
+    fn create_symbol() {
+        JULIA.with(|handle| {
+            handle.borrow_mut().with_stack(|mut stack| {
+                stack.scope(|frame| {
+                    let smb = Symbol::new(&frame, "a");
+                    smb.extend(&frame);
+                })
+            })
+        })
+    }
+
+    fn function_returns_symbol() {
+        JULIA.with(|handle| {
+            handle.borrow_mut().with_stack(|mut stack| {
+                stack.scope(|mut frame| unsafe {
+                    let smb = Module::main(&frame)
+                        .submodule(&frame, "JlrsTests")
+                        .unwrap()
+                        .as_managed()
+                        .global(&frame, "symbol")
+                        .unwrap()
+                        .as_managed();
+                    let smb_val = smb.call(&mut frame, []).unwrap();
+
+                    assert!(smb_val.is::<Symbol>());
+                    assert!(smb_val.cast::<Symbol>().is_ok());
+                    assert!(smb_val.cast::<Module>().is_err());
+                    assert!(smb_val.cast::<Array>().is_err());
+                    assert!(smb_val.cast::<DataType>().is_err());
+                })
+            })
+        })
+    }
+
+    fn symbols_are_reused() {
+        JULIA.with(|handle| {
+            handle.borrow_mut().with_stack(|mut stack| {
+                stack.scope(|frame| {
+                    let s1 = Symbol::new(&frame, "foo");
+                    let s2 = Symbol::new(&frame, "foo");
+
+                    assert_eq!(s1.as_str().unwrap(), s2.as_str().unwrap());
+                })
+            })
+        })
+    }
+
+    fn symbols_are_not_collected() {
+        JULIA.with(|handle| {
+            handle.borrow_mut().with_stack(|mut stack| {
+                stack.scope(|frame| {
+                    let s1 = Symbol::new(&frame, "foo");
+
+                    {
+                        frame.gc_collect(GcCollection::Full);
+                        let s1: String = s1.as_string().unwrap();
+                        assert_eq!(s1, String::from("foo"));
+                    }
+                })
+            })
+        })
+    }
+
+    fn jl_string_to_symbol() {
+        JULIA.with(|handle| {
+            handle.borrow_mut().with_stack(|mut stack| {
+                stack.scope(|mut frame| {
+                    let string = JuliaString::new(&mut frame, "+");
+                    assert!(Module::base(&frame).global(&frame, string).is_ok());
+                })
+            })
+        })
+    }
+
+    fn bytes_to_symbol() {
+        JULIA.with(|handle| {
+            handle.borrow_mut().with_stack(|mut stack| {
+                stack.scope(|mut frame| {
+                    let sym = Symbol::new_bytes(&mut frame, &[1]);
+                    assert!(sym.is_ok());
+                })
+            })
+        })
+    }
+
+    fn bytes_to_symbol_err() {
+        JULIA.with(|handle| {
+            handle.borrow_mut().with_stack(|mut stack| {
+                stack.scope(|mut frame| {
+                    let sym = Symbol::new_bytes(&mut frame, &[1, 0, 1]);
+                    assert!(sym.is_err());
+                })
+            })
+        })
+    }
+
+    fn bytes_to_symbol_unchecked() {
+        JULIA.with(|handle| {
+            handle.borrow_mut().with_stack(|mut stack| {
+                stack.scope(|frame| {
+                    let sym = unsafe { Symbol::new_bytes_unchecked(&frame, &[129]) };
+                    assert_eq!(sym.clone().as_cstr().to_bytes().len(), 1);
+                    assert_eq!(sym.as_bytes().len(), 1);
+                    assert!(sym.as_str().is_err());
+                })
+            })
+        })
+    }
+
+    fn extend_lifetime() {
+        JULIA.with(|handle| {
+            handle.borrow_mut().with_stack(|mut stack| {
+                stack.scope(|mut frame| {
+                    let output = frame.output();
+
+                    frame.scope(|frame| {
+                        let sym = Symbol::new(&frame, "a");
+                        sym.root(output)
+                    });
+                });
+            })
+        })
+    }
+
+    fn symbol_implements_hash() {
+        JULIA.with(|handle| {
+            handle.borrow_mut().with_stack(|mut stack| {
+                stack.scope(|frame| {
+                    let mut map = HashSet::new();
+                    map.insert(Symbol::new(&frame, "foo"));
+
+                    assert!(map.contains(&Symbol::new(&frame, "foo")));
+                })
+            })
+        })
+    }
+
+    #[test]
+    fn symbol_tests() {
+        create_symbol();
+        function_returns_symbol();
+        symbols_are_reused();
+        symbols_are_not_collected();
+        jl_string_to_symbol();
+        bytes_to_symbol_unchecked();
+        extend_lifetime();
+        symbol_implements_hash();
+        bytes_to_symbol();
+        bytes_to_symbol_err();
+    }
+}
