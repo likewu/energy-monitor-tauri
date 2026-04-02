@@ -1,7 +1,7 @@
 use std::env;
 
 use cfg_if::cfg_if;
-use find_julia::{JuliaDir, Version, enable_version_cfgs};
+use find_julia::{enable_version_cfgs, JuliaDir, Version};
 use jlrs_compat::{
     MAX_MINOR_VERSION, MIN_MINOR_VERSION, STABLE_MAJOR_VERSION, STABLE_MINOR_VERSION,
 };
@@ -139,8 +139,8 @@ fn compile_jlrs_cc(julia_dir: &JuliaDir, target: Option<BBTarget>) {
                     .file("src/jlrs_cc/jlrs_cc_hacks.cc")
                     .file("src/jlrs_cc/jlrs_cc_fast_tls.cc")
                     .cpp(true)
-                    .flag("/std:c++20")
-                    //.flag("-std=c++20")  //clang
+                    .flag_if_supported("/std:c++20")
+                    .flag_if_supported("-std=c++20")
                     .object(&julia_dll_a);
             } else {
                 c
