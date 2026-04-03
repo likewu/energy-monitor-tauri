@@ -3,8 +3,9 @@ $env:ANDROID_HOME = "E:\Embarcadero\Studio\22.0\PlatformSDKs\android-sdk-windows
 #$env:NDK_HOME = "E:\Embarcadero\Studio\22.0\PlatformSDKs\android-ndk-r21"
 $env:NDK_HOME = "G:/android-ndk-r27"
 $env:CC_ENABLE_DEBUG_OUTPUT = 1
-$env:JLRS_JULIA_DIR="D:/.julia/juliaup/julia-1.10.9+0.x64.w64.mingw32"  //not ok
-#$env:JLRS_JULIA_DIR="D:/julia-1.10.11"  //not ok  also is MinGW
+#$env:JLRS_JULIA_DIR="D:/.julia/juliaup/julia-1.10.9+0.x64.w64.mingw32"  #not ok
+#$env:JLRS_JULIA_DIR="D:/julia-1.10.11"  #not ok  also is MinGW
+$env:JLRS_JULIA_DIR="D:/.julia/juliaup/julia-1.10.11_aarch64"  #not ok should test in linux
 npm run tauri android init
 npm run tauri android dev
 npm run tauri android build -- --apk --target aarch64
